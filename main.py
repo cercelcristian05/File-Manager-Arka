@@ -18,7 +18,6 @@ class Interface:
         
         self.history = []
         self.popped_history = []
-        self.track = 0
                 
         self.initLayout()
         self.window.mainloop()
@@ -115,42 +114,47 @@ class Interface:
             self.choiceTwo.set(self.initChoice[0])
         
     def convertOutput(self):
-        threading.Thread(target = self.convertOutput, daemon=True).start()
-        try:
-            getFirstOption = self.choiceOne.get().lower()
-            getSecondOption = self.choiceTwo.get().lower()
-            getPath = self.entryFile.get()
-            getRedirectPath = self.outPath.get()
-            
-            mime = magic.Magic(mime=True)
-            mime_type = mime.from_file(getPath)
-            print(mime_type)
-            
-            if not os.path.isfile(getPath):
-                self.displayError.configure(text=f"Expected a file.", text_color='#e74c3c')
-                return
+        def _convertion():
+            try:
+                getFirstOption = self.choiceOne.get().lower()
+                getSecondOption = self.choiceTwo.get().lower()
+                getPath = self.entryFile.get()
+                getRedirectPath = self.outPath.get()
                 
-            if not os.path.isdir(getRedirectPath):
-                self.displayError.configure(text=f"Expected a directory.", text_color='#e74c3c')
-                return
+                mime = magic.Magic(mime=True)
+                mime_type = mime.from_file(getPath)
+                print(mime_type)
                 
-            getVar = os.path.basename(getPath)
-            outputFile = os.path.join(getRedirectPath, getVar.replace(getFirstOption, getSecondOption))
+                if not os.path.isfile(getPath):
+                    self.displayError.configure(text=f"Expected a file.", text_color='#e74c3c')
+                    return
+                    
+                if not os.path.isdir(getRedirectPath):
+                    self.displayError.configure(text=f"Expected a directory.", text_color='#e74c3c')
+                    return
+                    
+                getVar = os.path.basename(getPath)
+                outputFile = os.path.join(getRedirectPath, getVar.replace(getFirstOption, getSecondOption))
+                print(getPath, outputFile)
+                if mime_type.startswith("image/"):
+                    with Image.open(getPath) as img:
+                        if img.mode in ("RGBA", "LA"):
+                            img = img.convert("RGB")
+                        img.save(outputFile, getSecondOption.upper())
+                elif mime_type.startswith("audio/") or mime_type.startswith("video/"):
+                    ffmpeg.input(getPath).output(outputFile).run(overwrite_output=True)
+                else:
+                    self.displayError.configure(text=f"Format unsupported, file is {mime_type}.", text_color='#e74c3c')
+
+                self.displayError.configure(text='Conversion successful.', text_color='#2ecc71')
+
+            except Exception as e:
+                self.displayError.configure(text=str(e), text_color='#e74c3c')
+            finally:
+                print("Conversion thread finished.")  # Example cleanup log
             
-            if mime_type.startswith("image/"):
-                with Image.open(getPath) as img:
-                    if img.mode in ("RGBA", "LA"):
-                        img = img.convert("RGB")
-                    img.save(outputFile, getSecondOption.upper())
-            elif mime_type.startswith("audio/") or mime_type.startswith("video/"):
-                ffmpeg.input(getPath).output(outputFile).run(overwrite_output=True)
-            else:
-                self.displayError.configure(text=f"Format unsupported, file is {mime_type}.", text_color='#e74c3c')
+        threading.Thread(target = _convertion, daemon=True).start()
 
-            self.displayError.configure(text='Conversion successful.', text_color='#2ecc71')
-
-        except Exception as e:
-            self.displayError.configure(text=str(e), text_color='#e74c3c')
         
     def handlerDownloader(self):
         window = ctk.CTk()
